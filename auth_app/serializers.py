@@ -14,7 +14,8 @@ from rest_framework.decorators import action
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from auth_app.models import CustomUser, Profile, Report
+from auth_app.models import CustomUser, Profile, Report, EducationDetail, Cohort, Unit, TrainerAssignment, \
+    StudentCohortAssignment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -39,10 +40,42 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
+from rest_framework import serializers
+
+class EducationDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EducationDetail
+        fields = ['id', 'level_of_education', 'school_name', 'field_of_study', 'start_date', 'end_date', 'grade']
+
+
 class ProfileSerializer(serializers.ModelSerializer):
+    education_details = EducationDetailSerializer(many=True)
+
     class Meta:
         model = Profile
-        fields = '__all__'
+        fields = ['phone_number', 'gender', 'birth_date', 'education_details', 'linkedin_url', 'profile_image', 'uploaded_cv']
+
+    def create(self, validated_data):
+        education_details_data = validated_data.pop('education_details', [])
+        profile = super().create(validated_data)
+        for edu_data in education_details_data:
+            EducationDetail.objects.create(profile=profile, **edu_data)
+        return profile
+
+    def update(self, instance, validated_data):
+        education_details_data = validated_data.pop('education_details', [])
+        instance = super().update(instance, validated_data)
+
+        # Update or create education details
+        for edu_data in education_details_data:
+            edu_id = edu_data.pop('id', None)
+            if edu_id:
+                # Update existing education detail
+                EducationDetail.objects.filter(id=edu_id, profile=instance).update(**edu_data)
+            else:
+                # Create new education detail
+                EducationDetail.objects.create(profile=instance, **edu_data)
+        return instance
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -66,4 +99,41 @@ class UserResponseSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'last_name', 'email', 'is_superadmin', 'is_admin',
             'is_admissions', 'is_trainer', 'is_student', 'is_active', 'profile_picture',
             'cohort', 'phone_number', 'gender', 'birth_date', 'education', 'linkedin_url'
+        ]
+
+
+class CohortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cohort
+        fields = ['id', 'name', 'description']
+
+class UnitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unit
+        fields = ['id', 'name', 'description']
+
+class TrainerAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TrainerAssignment
+        fields = ['id', 'trainer', 'cohort', 'unit']
+
+class StudentCohortAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentCohortAssignment
+        fields = ['id', 'student', 'cohort', 'unit']
+
+class ReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Report
+        fields = [
+            'report_id',
+            'student',
+            'trainer',
+            'cohort',
+            'unit',
+            'title',
+            'progress_notes',
+            'problem',
+            'solve_problem',
+            'upload_file'
         ]

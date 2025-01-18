@@ -13,8 +13,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from auth_app.models import CustomUser, Profile, Report
-from auth_app.serializers import UserSerializer, ReportSerializer
+from auth_app.models import CustomUser, Profile, Report, EducationDetail
+from auth_app.serializers import UserSerializer, ReportSerializer, EducationDetailSerializer
 
 
 # Signal to send an email when a user is activated
@@ -64,22 +64,43 @@ class StudentRegistrationView(APIView):
 
     def post(self, request):
         data = request.data
-        required_fields = ['first_name', 'last_name', 'email', 'password', 'confirm_password']
 
-        for field in required_fields:
-            if field not in data:
-                return Response({'detail': f'Missing field: {field}'}, status=status.HTTP_400_BAD_REQUEST)
+        # Combine all required fields for both user and profile
+        required_user_fields = ['first_name', 'last_name', 'email', 'password', 'confirm_password']
+        required_profile_fields = ['phone_number', 'gender', 'birth_date', 'education', 'linkedin_url']
 
+        # Validate user fields
+        for field in required_user_fields:
+            if not data.get(field):
+                return Response({'detail': f'Missing required field: {field}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate passwords
         if data['password'] != data['confirm_password']:
             return Response({'detail': 'Passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validate profile fields
+        profile_data = data.get('profile', {})
+        for field in required_profile_fields:
+            if not profile_data.get(field):
+                return Response({'detail': f'Missing required profile field: {field}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate and save the user
         serializer = UserSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()
-            user.is_student = True  # Mark as student
+            user.is_student = True
             user.is_active = False  # Require approval
             user.save()
+
+            # Save the profile data
+            profile = user.profile
+            for field, value in profile_data.items():
+                setattr(profile, field, value)
+            profile.save()
+
             return Response({'detail': 'Student registration successful. Awaiting approval.'}, status=status.HTTP_201_CREATED)
+
+        # Return serializer errors if user validation fails
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -191,3 +212,20 @@ class StudentLoginView(APIView):
             }, status=status.HTTP_200_OK)
         except CustomUser.DoesNotExist:
             return Response({'detail': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+# Add  education
+class EducationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = EducationDetailSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(profile=request.user.profile)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        education_details = EducationDetail.objects.filter(profile=request.user.profile)
+        serializer = EducationDetailSerializer(education_details, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+

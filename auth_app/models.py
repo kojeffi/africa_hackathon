@@ -63,11 +63,28 @@ class CustomUser(AbstractUser, PermissionsMixin):
             'access': str(refresh.access_token),
         }
 
+
+
+
+class Cohort(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class Unit(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
 # Profile Model
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
     phone_number = PhoneNumberField(null=True, blank=True)
-    gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female')])
+    gender = models.CharField(max_length=50, choices=[('Male', 'Male'), ('Female', 'Female'),('Prefer not to say','Prefer not to say')])
     birth_date = models.DateField(null=True, blank=True)
     education = models.CharField(max_length=255, blank=True)
     linkedin_url = models.URLField(blank=True)
@@ -77,7 +94,7 @@ class Profile(models.Model):
         validators=[FileExtensionValidator(['pdf', 'doc', 'docx'])],
         blank=True
     )
-    cohort = models.CharField(max_length=255, blank=True, null=True)
+    cohort = models.ForeignKey(Cohort, on_delete=models.SET_NULL, null=True, blank=True, related_name="profiles")
 
     def __str__(self):
         return f"Profile of {self.user.email}"
@@ -87,15 +104,78 @@ def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Profile.objects.create(user=instance)
 
+
+class EducationLevel(models.Model):
+    """
+    Model to allow admin/super admin to define education levels.
+    """
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class EducationDetail(models.Model):
+    """
+    Model to store education details for each profile.
+    """
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="education_details")
+    level_of_education = models.ForeignKey(EducationLevel, on_delete=models.SET_NULL, null=True, blank=True)
+    school_name = models.CharField(max_length=255)
+    field_of_study = models.CharField(max_length=255, blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    grade = models.CharField(max_length=50, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.level_of_education} - {self.school_name} ({self.start_date} to {self.end_date})"
+
+
+
+
+# Report Model
 # Report Model
 class Report(models.Model):
-    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'is_student': True})
+    student = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        limit_choices_to={'is_student': True},
+        related_name='student_reports'  # Explicit reverse relationship name for student
+    )
+    trainer = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        limit_choices_to={'is_trainer': True},
+        related_name='trainer_reports'  # Explicit reverse relationship name for trainer
+    )
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='reports')
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='reports')
     report_id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
     progress_notes = models.TextField()
     problem = models.TextField()
     solve_problem = models.TextField()
-    upload_file = models.FileField(upload_to='reports/', validators=[FileExtensionValidator(['pdf', 'doc', 'docx'])])
+    upload_file = models.FileField(
+        upload_to='reports/',
+        validators=[FileExtensionValidator(['pdf', 'doc', 'docx'])]
+    )
 
     def __str__(self):
-        return self.title
+        return f"Report: {self.title} | Student: {self.student.email} | Trainer: {self.trainer.email}"
+
+
+class TrainerAssignment(models.Model):
+    trainer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'is_trainer': True})
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='trainer_assignments')
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='trainer_assignments')
+
+    def __str__(self):
+        return f"Trainer: {self.trainer.email} | Cohort: {self.cohort.name} | Unit: {self.unit.name}"
+
+class StudentCohortAssignment(models.Model):
+    student = models.ForeignKey(CustomUser, on_delete=models.CASCADE, limit_choices_to={'is_student': True})
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='student_assignments')
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='student_assignments')
+
+    def __str__(self):
+        return f"Student: {self.student.email} | Cohort: {self.cohort.name} | Unit: {self.unit.name}"

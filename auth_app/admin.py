@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import CustomUser, Profile, Report
+from .models import CustomUser, Profile, Report, EducationLevel, EducationDetail, Cohort, Unit, TrainerAssignment, \
+    StudentCohortAssignment
+
 
 # Customize the admin interface for CustomUser
 class CustomUserAdmin(admin.ModelAdmin):
@@ -24,3 +26,34 @@ class ReportAdmin(admin.ModelAdmin):
     search_fields = ('title', 'student__email')
 
 admin.site.register(Report, ReportAdmin)
+
+
+@admin.register(EducationLevel)
+class EducationLevelAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name']
+    search_fields = ['name']
+
+@admin.register(EducationDetail)
+class EducationDetailAdmin(admin.ModelAdmin):
+    list_display = ['profile', 'level_of_education', 'school_name', 'start_date', 'end_date']
+    list_filter = ['level_of_education']
+
+@admin.register(Cohort)
+class CohortAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name']
+    search_fields = ['name']
+
+@admin.register(Unit)
+class UnitAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name']
+    search_fields = ['name']
+
+@admin.register(TrainerAssignment)
+class TrainerAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['trainer', 'cohort', 'unit']
+    list_filter = ['cohort', 'unit', 'trainer']
+
+@admin.register(StudentCohortAssignment)
+class StudentCohortAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['student', 'cohort', 'unit']
+    list_filter = ['cohort', 'unit', 'student']
