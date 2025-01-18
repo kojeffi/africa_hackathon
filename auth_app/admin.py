@@ -1,38 +1,26 @@
 from django.contrib import admin
-from .models import InvitationCode, Profile, CustomUser
-from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser
+from .models import CustomUser, Profile, Report
 
-
-@admin.register(Profile)
-class ProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'phone_number', 'gender', 'birth_date',
-                    'education', 'linkedin_url','uploaded_cv','profile_image')
-    search_fields = ('user__username', 'phone_number', 'education')
-
-@admin.register(CustomUser)
-class CustomUserAdmin(UserAdmin):  # Use UserAdmin instead of ModelAdmin
-    list_display = ('first_name', 'last_name', 'email', 'is_trainer', 'is_student', 'invitation_code', 'is_approved', 'is_rejected', 'is_waiting_approval', 'is_active')
-    search_fields = ('email', 'first_name', 'last_name')
-    list_filter = ('is_trainer', 'is_student', 'is_approved', 'is_rejected', 'is_waiting_approval', 'is_active')
+# Customize the admin interface for CustomUser
+class CustomUserAdmin(admin.ModelAdmin):
+    list_display = ('email', 'is_superadmin', 'is_admin', 'is_admissions', 'is_trainer', 'is_student', 'is_active')
+    list_filter = ('is_superadmin', 'is_admin', 'is_admissions', 'is_trainer', 'is_student', 'is_active')
+    search_fields = ('email',)
     ordering = ('email',)
-    fieldsets = (
-        (None, {'fields': ('username', 'email', 'password')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),  # Permissions fields
-        ('Account Type', {'fields': ('is_student', 'is_trainer', 'is_approved', 'is_rejected', 'is_waiting_approval', 'invitation_code')}),  # Custom fields
-    )
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2', 'is_student', 'is_trainer', 'is_approved', 'is_rejected', 'is_waiting_approval', 'invitation_code'),
-        }),
-    )
+    filter_horizontal = ()
 
+admin.site.register(CustomUser, CustomUserAdmin)
 
-@admin.register(InvitationCode)
-class InvitationCodeAdmin(admin.ModelAdmin):
-    list_display = ('code', 'created_at')  # Ensure these fields exist in InvitationCode model
-    search_fields = ('code',)
-    list_filter = ('created_at',)
-    readonly_fields = ('created_at',)
+# Register Profile model
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'phone_number', 'gender', 'cohort')
+    search_fields = ('user__email',)
+
+admin.site.register(Profile, ProfileAdmin)
+
+# Register Report model
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ('report_id', 'title', 'student')
+    search_fields = ('title', 'student__email')
+
+admin.site.register(Report, ReportAdmin)
